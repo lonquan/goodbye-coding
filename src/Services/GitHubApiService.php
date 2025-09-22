@@ -172,6 +172,14 @@ class GitHubApiService implements ApiClientInterface
     }
 
     /**
+     * 删除仓库.
+     */
+    public function deleteRepository(string $owner, string $repo): array
+    {
+        return $this->delete("/repos/{$owner}/{$repo}");
+    }
+
+    /**
      * 构建完整 URL.
      */
     private function buildUrl(string $endpoint): string
@@ -205,7 +213,27 @@ class GitHubApiService implements ApiClientInterface
     private function handleResponse(ResponseInterface $response): array
     {
         $statusCode = $response->getStatusCode();
-        $content = $response->toArray(false);
+
+        // 对于成功状态码且响应体为空的情况（如 DELETE 204），返回空数组
+        if ($statusCode >= 200 && $statusCode < 300) {
+            $contentType = $response->getHeaders()['content-type'][0] ?? '';
+            if (!str_contains($contentType, 'application/json')) {
+                return [];
+            }
+        }
+
+        try {
+            $content = $response->toArray(false);
+        } catch (\Exception $e) {
+            // 如果解析 JSON 失败，检查是否是空响应
+            $body = $response->getContent(false);
+            if (empty(trim($body))) {
+                return [];
+            }
+
+            // 如果不是空响应，重新抛出异常
+            throw $e;
+        }
 
         // 处理 HTTP 错误状态码
         if ($statusCode >= 400) {

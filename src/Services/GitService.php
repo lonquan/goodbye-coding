@@ -70,7 +70,7 @@ class GitService implements GitServiceInterface
     /**
      * 推送代码到远程仓库.
      */
-    public function push(string $repositoryPath, string $remote = 'origin', string $branch = 'main', bool $force = false): void
+    public function push(string $repositoryPath, string $remote = 'origin', string $branch = 'main', bool $force = false, ?int $timeout = null): void
     {
         $this->ensureRepositoryExists($repositoryPath);
 
@@ -84,6 +84,11 @@ class GitService implements GitServiceInterface
         $command[] = $branch;
 
         $process = new Process($command, $repositoryPath);
+        
+        // 设置超时时间
+        if ($timeout !== null) {
+            $process->setTimeout($timeout);
+        }
 
         $process->run();
 
@@ -267,6 +272,72 @@ class GitService implements GitServiceInterface
     }
 
     /**
+     * 检查仓库是否为空（没有任何提交）.
+     */
+    public function isEmpty(string $repositoryPath): bool
+    {
+        $this->ensureRepositoryExists($repositoryPath);
+
+        // 检查是否有任何提交
+        $process = new Process([
+            $this->gitCommand,
+            'rev-list',
+            '--count',
+            '--all',
+        ], $repositoryPath);
+
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            // 如果命令失败，可能是空仓库
+            return true;
+        }
+
+        $commitCount = (int) trim($process->getOutput());
+        return $commitCount === 0;
+    }
+
+    /**
+     * 检查仓库是否有任何内容（包括未跟踪的文件）.
+     */
+    public function hasContent(string $repositoryPath): bool
+    {
+        $this->ensureRepositoryExists($repositoryPath);
+
+        // 检查是否有任何文件（包括未跟踪的）
+        $process = new Process([
+            $this->gitCommand,
+            'ls-files',
+            '--others',
+            '--exclude-standard',
+        ], $repositoryPath);
+
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            $untrackedFiles = trim($process->getOutput());
+            if (!empty($untrackedFiles)) {
+                return true;
+            }
+        }
+
+        // 检查是否有已跟踪的文件
+        $process = new Process([
+            $this->gitCommand,
+            'ls-files',
+        ], $repositoryPath);
+
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            $trackedFiles = trim($process->getOutput());
+            return !empty($trackedFiles);
+        }
+
+        return false;
+    }
+
+    /**
      * 清理仓库.
      */
     public function cleanup(string $repositoryPath): void
@@ -321,13 +392,13 @@ class GitService implements GitServiceInterface
     /**
      * 推送代码到远程仓库.
      */
-    public function pushToRemote(string $repositoryPath, string $remote, string $branch, bool $force = false): void
+    public function pushToRemote(string $repositoryPath, string $remote, string $branch, bool $force = false, ?int $timeout = null): void
     {
-        $this->push($repositoryPath, $remote, $branch, $force);
+        $this->push($repositoryPath, $remote, $branch, $force, $timeout);
     }
 
     /**
-     * 递归删除目录.
+     * 删除目录.
      */
     private function removeDirectory(string $directory): void
     {
@@ -335,16 +406,12 @@ class GitService implements GitServiceInterface
             return;
         }
 
-        $files = array_diff(scandir($directory), ['.', '..']);
-        foreach ($files as $file) {
-            $path = $directory . '/' . $file;
-            if (is_dir($path)) {
-                $this->removeDirectory($path);
-            } else {
-                unlink($path);
-            }
-        }
+        // 使用系统命令直接删除目录，更高效
+        $process = new Process(['rm', '-rf', $directory]);
+        $process->run();
 
-        rmdir($directory);
+        if (!$process->isSuccessful()) {
+            throw new GitException("Failed to remove directory: {$directory}");
+        }
     }
 }

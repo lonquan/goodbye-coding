@@ -220,6 +220,15 @@ class ConfigService
     }
 
     /**
+     * 生成基于启动时间的日志文件路径.
+     */
+    public function generateLogFilePath(): string
+    {
+        $timestamp = date('Y-m-d_H-i-s');
+        return "./logs/migration-{$timestamp}.log";
+    }
+
+    /**
      * 获取默认配置.
      */
     private function getDefaultConfig(): array
@@ -244,6 +253,8 @@ class ConfigService
                 'verbose_output' => false,
                 'timeout' => 300,
                 'rate_limit' => 60,
+                'git_push_timeout' => 600, // Git push 超时时间（秒），默认10分钟
+                'skip_empty_repositories' => true, // 是否跳过空仓库，默认跳过
             ],
             'logging' => [
                 'level' => 'info',

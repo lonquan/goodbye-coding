@@ -143,6 +143,13 @@ class MigrationService implements MigrationServiceInterface
 
             $githubRepo = $this->checkGitHubRepository($repository, $options);
             $result->addDetail('github_repo', $githubRepo);
+            
+            // 如果仓库是新创建的，显示创建信息
+            if (isset($githubRepo['clone_url']) && !isset($githubRepo['_skipped'])) {
+                $githubOrg = $this->configService->get('github.organization');
+                $repoName = $githubRepo['name'] ?? 'unknown';
+                $this->updateProgress($progressCallback, "📦 GitHub仓库不存在，将创建新仓库: {$githubOrg}/{$repoName}", $repositoryName);
+            }
 
             // 检查是否跳过了仓库创建
             if (isset($githubRepo['_skipped']) && $githubRepo['_skipped']) {
@@ -163,21 +170,81 @@ class MigrationService implements MigrationServiceInterface
 
             // 使用 projectName + repoName 组合命名，避免重复
             $projectName = $repository['ProjectName'] ?? $repository['project_name'] ?? 'unknown';
-            $localFolderName = $projectName . '_' . $repositoryName;
+            $convertedName = $this->convertRepositoryName($projectName, $repositoryName);
+            $localFolderName = str_replace('-', '_', $convertedName);
 
-            $localPath = $this->gitService->cloneRepository(
-                $repository['SshUrl'] ?? $repository['ssh_url'] ?? $repository['HttpsUrl'] ?? $repository['git_url'],
-                $localFolderName
-            );
+            $cloneUrl = $repository['SshUrl'] ?? $repository['ssh_url'] ?? $repository['HttpsUrl'] ?? $repository['git_url'];
+            $this->logService->info('克隆Coding仓库', [
+                'repository' => $repositoryName,
+                'clone_url' => $cloneUrl,
+                'local_folder' => $localFolderName,
+            ]);
+
+            $localPath = $this->gitService->cloneRepository($cloneUrl, $localFolderName);
             $result->addDetail('local_path', $localPath);
-            $this->updateProgress($progressCallback, '✅  代码克隆完成', $repositoryName);
+            
+            $this->logService->info('代码克隆完成', [
+                'repository' => $repositoryName,
+                'local_path' => $localPath,
+                'local_folder' => $localFolderName,
+            ]);
+            $this->updateProgress($progressCallback, "📥 克隆Coding仓库: 目录路径 {$localPath}，文件夹名称 {$localFolderName}", $repositoryName);
+
+            // 步骤2.5: 检查仓库是否为空
+            $skipEmptyRepos = $this->configService->get('migration.skip_empty_repositories', true);
+            if ($skipEmptyRepos) {
+                $this->updateProgress($progressCallback, '🔍 正在检查仓库内容...', $repositoryName);
+                $this->logService->info('检查仓库是否为空', ['repository' => $repositoryName]);
+                
+                if ($this->gitService->isEmpty($localPath)) {
+                    $this->updateProgress($progressCallback, '⏭️  跳过空仓库', $repositoryName);
+                    $this->logService->info('跳过空仓库', [
+                        'repository' => $repositoryName,
+                        'reason' => '仓库没有任何提交内容',
+                    ]);
+                    
+                    // 清理本地仓库
+                    $this->gitService->cleanup($localPath);
+                    
+                    $result->addDetail('skipped', true);
+                    $result->addDetail('skip_reason', '仓库为空（没有任何提交）');
+                    $result->addSuccess($repositoryName);
+                    
+                    return $result;
+                }
+                
+                if (!$this->gitService->hasContent($localPath)) {
+                    $this->updateProgress($progressCallback, '⏭️  跳过空仓库', $repositoryName);
+                    $this->logService->info('跳过空仓库', [
+                        'repository' => $repositoryName,
+                        'reason' => '仓库没有任何文件内容',
+                    ]);
+                    
+                    // 清理本地仓库
+                    $this->gitService->cleanup($localPath);
+                    
+                    $result->addDetail('skipped', true);
+                    $result->addDetail('skip_reason', '仓库为空（没有任何文件）');
+                    $result->addSuccess($repositoryName);
+                    
+                    return $result;
+                }
+                
+                $this->logService->info('仓库内容检查通过', ['repository' => $repositoryName]);
+            }
 
             // 步骤3: 通过 SSH 推送项目到 GitHub
             $this->updateProgress($progressCallback, '🔄 正在推送代码到GitHub...', $repositoryName);
             $this->logService->info('步骤3: 推送代码到GitHub', ['repository' => $repositoryName]);
 
             // 添加GitHub远程仓库
-            $this->gitService->addRemote($localPath, 'github', $githubRepo['ssh_url'] ?? $githubRepo['clone_url']);
+            $githubRemoteUrl = $githubRepo['ssh_url'] ?? $githubRepo['clone_url'];
+            $this->gitService->addRemote($localPath, 'github', $githubRemoteUrl);
+            
+            $this->logService->info('添加GitHub远程仓库', [
+                'repository' => $repositoryName,
+                'remote_url' => $githubRemoteUrl,
+            ]);
 
             // 检测默认分支
             $defaultBranch = $this->gitService->getDefaultBranch($localPath);
@@ -185,7 +252,27 @@ class MigrationService implements MigrationServiceInterface
 
             // 推送代码到GitHub（如果仓库已存在且配置为覆盖，则使用强制推送）
             $forcePush = $this->configService->get('github.overwrite_existing', false);
-            $this->gitService->pushToRemote($localPath, 'github', $defaultBranch, $forcePush);
+            $gitPushTimeout = $this->configService->get('migration.git_push_timeout', 600);
+            $maxRetryAttempts = $this->configService->get('migration.max_retry_attempts', 3);
+            $retryDelaySeconds = $this->configService->get('migration.retry_delay_seconds', 5);
+            
+            $this->logService->info('开始推送代码到GitHub', [
+                'repository' => $repositoryName,
+                'github_url' => $githubRemoteUrl,
+                'branch' => $defaultBranch,
+                'force_push' => $forcePush,
+            ]);
+            
+            $this->pushWithRetry($localPath, 'github', $defaultBranch, $forcePush, $gitPushTimeout, $maxRetryAttempts, $retryDelaySeconds);
+            
+            $this->logService->info('代码推送完成', [
+                'repository' => $repositoryName,
+                'github_url' => $githubRemoteUrl,
+                'branch' => $defaultBranch,
+            ]);
+            
+            // 更新进度，显示推送的仓库地址
+            $this->updateProgress($progressCallback, "📤 推送代码到GitHub: 仓库地址 {$githubRemoteUrl}", $repositoryName);
 
             // 清理本地仓库
             $this->updateProgress($progressCallback, '🔄 正在清理临时文件...', $repositoryName);
@@ -468,12 +555,29 @@ class MigrationService implements MigrationServiceInterface
     }
 
     /**
+     * 转换仓库名称格式.
+     * 将 aaa-bbb/ccc-ddd 格式转换为 aaa_bbb-ccc_ddd 格式
+     */
+    private function convertRepositoryName(string $projectName, string $repoName): string
+    {
+        // 将项目名称和仓库名称中的连字符替换为下划线
+        $convertedProjectName = str_replace('-', '_', $projectName);
+        $convertedRepoName = str_replace('-', '_', $repoName);
+        
+        // 拼接为 项目名-仓库名 的格式
+        return sprintf('%s-%s', $convertedProjectName, $convertedRepoName);
+    }
+
+    /**
      * 检查GitHub仓库是否存在并处理.
      */
     private function checkGitHubRepository(array $repository, array $options): array
     {
         $prefix = $options['prefix'] ?? '';
-        $repoName = $prefix . ($repository['Name'] ?? $repository['name']);
+        $projectName = $repository['ProjectName'] ?? $repository['project_name'] ?? 'unknown';
+        $originalRepoName = $repository['Name'] ?? $repository['name'] ?? 'unknown';
+        $convertedName = $this->convertRepositoryName($projectName, $originalRepoName);
+        $repoName = $prefix . $convertedName;
         $githubOrg = $this->configService->get('github.organization');
         $overwriteExisting = $this->configService->get('github.overwrite_existing', false);
 
@@ -510,6 +614,9 @@ class MigrationService implements MigrationServiceInterface
             'repository' => $repoName,
             'organization' => $githubOrg,
         ]);
+        
+        // 注意：这里不能直接调用 updateProgress，因为 checkGitHubRepository 方法没有 progressCallback 参数
+        // 进度更新将在调用方处理
 
         // 创建新仓库
         $data = [
@@ -528,6 +635,8 @@ class MigrationService implements MigrationServiceInterface
         $this->logService->info('GitHub仓库创建成功', [
             'repository' => $repoName,
             'organization' => $githubOrg,
+            'clone_url' => $response['clone_url'],
+            'ssh_url' => $response['ssh_url'] ?? '',
         ]);
 
         return $response;
@@ -539,7 +648,10 @@ class MigrationService implements MigrationServiceInterface
     private function createGitHubRepository(array $repository, array $options): array
     {
         $prefix = $options['prefix'] ?? '';
-        $repoName = $prefix . ($repository['Name'] ?? $repository['name']);
+        $projectName = $repository['ProjectName'] ?? $repository['project_name'] ?? 'unknown';
+        $originalRepoName = $repository['Name'] ?? $repository['name'] ?? 'unknown';
+        $convertedName = $this->convertRepositoryName($projectName, $originalRepoName);
+        $repoName = $prefix . $convertedName;
         $githubOrg = $this->configService->get('github.organization');
         $overwriteExisting = $this->configService->get('github.overwrite_existing', false);
 
@@ -591,6 +703,60 @@ class MigrationService implements MigrationServiceInterface
         ]);
 
         return $response;
+    }
+
+    /**
+     * 带重试的推送方法.
+     */
+    private function pushWithRetry(string $repositoryPath, string $remote, string $branch, bool $force, int $timeout, int $maxRetryAttempts, int $retryDelaySeconds): void
+    {
+        $attempt = 1;
+        $lastException = null;
+
+        while ($attempt <= $maxRetryAttempts) {
+            try {
+                $this->logService->info('开始推送代码', [
+                    'attempt' => $attempt,
+                    'max_attempts' => $maxRetryAttempts,
+                    'timeout' => $timeout,
+                    'remote' => $remote,
+                    'branch' => $branch
+                ]);
+
+                $this->gitService->pushToRemote($repositoryPath, $remote, $branch, $force, $timeout);
+                
+                $this->logService->info('推送成功', [
+                    'attempt' => $attempt,
+                    'remote' => $remote,
+                    'branch' => $branch
+                ]);
+                
+                return; // 推送成功，退出重试循环
+                
+            } catch (\Exception $e) {
+                $lastException = $e;
+                $this->logService->warning('推送失败', [
+                    'attempt' => $attempt,
+                    'max_attempts' => $maxRetryAttempts,
+                    'error' => $e->getMessage(),
+                    'remote' => $remote,
+                    'branch' => $branch
+                ]);
+
+                if ($attempt < $maxRetryAttempts) {
+                    $this->logService->info('准备重试推送', [
+                        'next_attempt' => $attempt + 1,
+                        'retry_delay' => $retryDelaySeconds
+                    ]);
+                    sleep($retryDelaySeconds);
+                }
+                
+                $attempt++;
+            }
+        }
+
+        // 所有重试都失败了，抛出最后一个异常
+        throw $lastException;
     }
 
     /**

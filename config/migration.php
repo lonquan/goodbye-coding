@@ -17,7 +17,7 @@ return [
         'access_token' => null, // 从环境变量 GITHUB_ACCESS_TOKEN 获取
         'base_url' => 'https://api.github.com',
         'organization' => null, // 从环境变量 GITHUB_ORGANIZATION 获取
-        'overwrite_existing' => false, // 是否覆盖已存在的仓库
+        'overwrite_existing' => true, // 是否覆盖已存在的仓库
     ],
     'migration' => [
         'concurrent_limit' => 3,
@@ -25,9 +25,11 @@ return [
         'max_retry_attempts' => 3,
         'retry_delay_seconds' => 5,
         'debug_mode' => false,
-        'verbose_output' => false,
+        'verbose_output' => true,
         'timeout' => 300,
         'rate_limit' => 60,
+        'git_push_timeout' => 600, // Git push 超时时间（秒），默认10分钟
+        'skip_empty_repositories' => true, // 是否跳过空仓库，默认跳过
     ],
     'exclude_repositories' => [
     ],

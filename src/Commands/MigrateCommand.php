@@ -136,11 +136,16 @@ class MigrateCommand extends Command
 
         // 创建其他服务
         $gitService = new GitService();
+        
+        // 生成基于启动时间的日志文件路径
+        $logFilePath = $this->configService->generateLogFilePath();
+        
         $logService = new LogService(
-            $config['logging']['file'] ?? './logs/migration.log',
+            $logFilePath,
             $config['logging']['level'] ?? 'info',
             $config['migration']['debug_mode'] ?? false,
-            $config['logging']['timezone'] ?? 'PRC'
+            $config['logging']['timezone'] ?? 'PRC',
+            $config['migration']['verbose_output'] ?? true
         );
 
         // 创建迁移服务
@@ -199,7 +204,20 @@ class MigrateCommand extends Command
 
             // 创建进度回调函数
             $progressCallback = function (string $message, string $repoName) use ($io) {
-                $io->writeln(sprintf('  %s', $message));
+                // 根据消息类型添加不同的颜色和格式
+                if (str_contains($message, 'GitHub仓库不存在，将创建新仓库')) {
+                    $io->writeln(sprintf('  <comment>📦 %s</comment>', $message));
+                } elseif (str_contains($message, '克隆代码') || str_contains($message, '代码克隆完成')) {
+                    $io->writeln(sprintf('  <info>📥 %s</info>', $message));
+                } elseif (str_contains($message, '推送代码到GitHub') || str_contains($message, '代码推送完成')) {
+                    $io->writeln(sprintf('  <info>📤 %s</info>', $message));
+                } elseif (str_contains($message, '✅')) {
+                    $io->writeln(sprintf('  <info>%s</info>', $message));
+                } elseif (str_contains($message, '❌')) {
+                    $io->writeln(sprintf('  <error>%s</error>', $message));
+                } else {
+                    $io->writeln(sprintf('  %s', $message));
+                }
             };
 
             $repoResult = $this->migrationService->migrateRepositoryWithInfo(
@@ -330,6 +348,20 @@ class MigrateCommand extends Command
     }
 
     /**
+     * 转换仓库名称格式.
+     * 将 aaa-bbb/ccc-ddd 格式转换为 aaa_bbb-ccc_ddd 格式
+     */
+    private function convertRepositoryName(string $projectName, string $repoName): string
+    {
+        // 将项目名称和仓库名称中的连字符替换为下划线
+        $convertedProjectName = str_replace('-', '_', $projectName);
+        $convertedRepoName = str_replace('-', '_', $repoName);
+        
+        // 拼接为 项目名-仓库名 的格式
+        return sprintf('%s-%s', $convertedProjectName, $convertedRepoName);
+    }
+
+    /**
      * 显示仓库列表和迁移信息.
      */
     private function displayRepositoryListWithMigrationInfo(SymfonyStyle $io, array $repositories, array $options): void
@@ -349,7 +381,8 @@ class MigrateCommand extends Command
             $projectName = $repository['ProjectName'] ?? $repository['project_name'] ?? 'Unknown';
             $repoName = $repository['Name'] ?? $repository['name'] ?? 'Unknown';
             $sourceRepo = sprintf('%s/%s', $projectName, $repoName);
-            $targetRepo = sprintf('%s/%s-%s', $githubOrg, $projectName, $repoName);
+            $convertedName = $this->convertRepositoryName($projectName, $repoName);
+            $targetRepo = sprintf('%s/%s', $githubOrg, $convertedName);
 
             // 获取描述
             $description = $repository['Description'] ?? '';
@@ -447,7 +480,8 @@ class MigrateCommand extends Command
             $projectName = $repository['ProjectName'] ?? $repository['project_name'] ?? 'Unknown';
             $repoName = $repository['Name'] ?? $repository['name'] ?? 'Unknown';
             $sourceRepo = sprintf('%s/%s', $projectName, $repoName);
-            $targetRepo = sprintf('%s/%s-%s', $githubOrg, $projectName, $repoName);
+            $convertedName = $this->convertRepositoryName($projectName, $repoName);
+            $targetRepo = sprintf('%s/%s', $githubOrg, $convertedName);
 
             $table->addRow([
                 $sourceRepo,

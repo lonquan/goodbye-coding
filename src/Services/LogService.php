@@ -6,6 +6,7 @@ namespace GoodbyeCoding\Migration\Services;
 
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\RotatingFileHandler;
+use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Monolog\Processor\PsrLogMessageProcessor;
 
@@ -20,16 +21,19 @@ class LogService
     private string $logFile;
     private string $logLevel;
     private bool $debugMode;
+    private bool $consoleOutput;
 
     public function __construct(
         string $logFile = './logs/migration.log',
         string $logLevel = 'info',
         bool $debugMode = false,
-        string $timezone = 'PRC'
+        string $timezone = 'PRC',
+        bool $consoleOutput = true
     ) {
         $this->logFile = $logFile;
         $this->logLevel = $logLevel;
         $this->debugMode = $debugMode;
+        $this->consoleOutput = $consoleOutput;
 
         // 设置时区
         date_default_timezone_set($timezone);
@@ -210,6 +214,17 @@ class LogService
     }
 
     /**
+     * 设置控制台输出.
+     */
+    public function setConsoleOutput(bool $consoleOutput): self
+    {
+        $this->consoleOutput = $consoleOutput;
+        $this->initializeLogger();
+
+        return $this;
+    }
+
+    /**
      * 初始化日志记录器.
      */
     private function initializeLogger(): void
@@ -222,16 +237,29 @@ class LogService
             mkdir($logDir, 0755, true);
         }
 
-        // 创建格式化器
-        $formatter = new LineFormatter(
+        // 创建文件格式化器
+        $fileFormatter = new LineFormatter(
             "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n",
             'Y-m-d H:i:s'
         );
 
-        // 添加处理器
-        $handler = new RotatingFileHandler($this->logFile, 0, $this->getLogLevelConstant());
-        $handler->setFormatter($formatter);
-        $this->logger->pushHandler($handler);
+        // 创建控制台格式化器（更简洁的格式）
+        $consoleFormatter = new LineFormatter(
+            "[%datetime%] %level_name%: %message%\n",
+            'H:i:s'
+        );
+
+        // 添加文件处理器
+        $fileHandler = new RotatingFileHandler($this->logFile, 0, $this->getLogLevelConstant());
+        $fileHandler->setFormatter($fileFormatter);
+        $this->logger->pushHandler($fileHandler);
+
+        // 添加控制台处理器（如果启用）
+        if ($this->consoleOutput) {
+            $consoleHandler = new StreamHandler('php://stdout', $this->getLogLevelConstant());
+            $consoleHandler->setFormatter($consoleFormatter);
+            $this->logger->pushHandler($consoleHandler);
+        }
 
         // 添加 PSR 日志消息处理器
         $this->logger->pushProcessor(new PsrLogMessageProcessor());

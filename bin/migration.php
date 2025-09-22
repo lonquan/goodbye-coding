@@ -4,6 +4,8 @@
 declare(strict_types=1);
 
 use GoodbyeCoding\Migration\Commands\ConfigCommand;
+use GoodbyeCoding\Migration\Commands\DeleteRepositoriesCommand;
+use GoodbyeCoding\Migration\Commands\DownloadCommand;
 use GoodbyeCoding\Migration\Commands\MigrateCommand;
 use GoodbyeCoding\Migration\Commands\StatusCommand;
 use Symfony\Component\Console\Application;
@@ -29,7 +31,9 @@ $application = new Application('Coding to GitHub Migration Tool', '1.0.0');
 
 // 注册命令
 $application->add(new MigrateCommand());
+$application->add(new DownloadCommand());
 $application->add(new ConfigCommand());
 $application->add(new StatusCommand());
+$application->add(new DeleteRepositoriesCommand());
 
 $application->run();
