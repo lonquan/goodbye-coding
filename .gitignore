@@ -1,0 +1,31 @@
+# 依赖
+/vendor/
+composer.lock
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 临时文件
+/coverage/
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+.phpunit.result.cache
+phpunit.xml
+.phpstan-cache
+
+# 缓存文件
+*.cache
+*.tmp

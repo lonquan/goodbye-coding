@@ -1,0 +1,587 @@
+openapi: 3.0.3
+info:
+  title: Coding API Contract
+  description: Coding 平台 API 契约定义
+  version: 1.0.0
+  contact:
+    name: Coding API Support
+    url: https://coding.net/help/openapi
+
+servers:
+  - url: https://e.coding.net
+    description: Coding 生产环境
+
+security:
+  - TokenAuth: []
+
+paths:
+  /open-api:
+    post:
+      summary: Coding Open API 端点
+      description: 所有 Coding API 请求都通过此端点发送
+      operationId: openApi
+      tags:
+        - Open API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/DescribeUserProjectsRequest'
+                - $ref: '#/components/schemas/DescribeProjectDepotInfoListRequest'
+                - $ref: '#/components/schemas/DescribeDepotInfoRequest'
+                - $ref: '#/components/schemas/DescribeTeamDepotInfoListRequest'
+                - $ref: '#/components/schemas/DescribeCodingCurrentUserRequest'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProjectListResponse'
+                  - $ref: '#/components/schemas/RepositoryListResponse'
+                  - $ref: '#/components/schemas/RepositoryDetailResponse'
+                  - $ref: '#/components/schemas/TeamDepotListResponse'
+                  - $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: 认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+components:
+  securitySchemes:
+    TokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+      description: 使用 Personal Access Token 进行认证
+
+  schemas:
+    # 请求 Schema
+    DescribeUserProjectsRequest:
+      type: object
+      required:
+        - Action
+      properties:
+        Action:
+          type: string
+          description: API 操作名称
+          example: "DescribeUserProjects"
+        PageNumber:
+          type: integer
+          description: 页码，从1开始
+          minimum: 1
+          default: 1
+        PageSize:
+          type: integer
+          description: 每页大小，最大100
+          minimum: 1
+          maximum: 100
+          default: 20
+
+    DescribeProjectDepotInfoListRequest:
+      type: object
+      required:
+        - Action
+        - ProjectId
+      properties:
+        Action:
+          type: string
+          description: API 操作名称
+          example: "DescribeProjectDepotInfoList"
+        ProjectId:
+          type: integer
+          description: 项目ID
+          minimum: 1
+        PageNumber:
+          type: integer
+          description: 页码，从1开始
+          minimum: 1
+          default: 1
+        PageSize:
+          type: integer
+          description: 每页大小，最大100
+          minimum: 1
+          maximum: 100
+          default: 20
+
+    DescribeDepotInfoRequest:
+      type: object
+      required:
+        - Action
+        - ProjectId
+        - DepotId
+      properties:
+        Action:
+          type: string
+          description: API 操作名称
+          example: "DescribeDepotInfo"
+        ProjectId:
+          type: integer
+          description: 项目ID
+          minimum: 1
+        DepotId:
+          type: integer
+          description: 仓库ID
+          minimum: 1
+
+    DescribeTeamDepotInfoListRequest:
+      type: object
+      required:
+        - Action
+        - PageNumber
+        - PageSize
+      properties:
+        Action:
+          type: string
+          description: API 操作名称
+          example: "DescribeTeamDepotInfoList"
+        PageNumber:
+          type: integer
+          description: 页码，从1开始
+          minimum: 1
+          example: 1
+        PageSize:
+          type: integer
+          description: 每页大小，最大100
+          minimum: 1
+          maximum: 100
+          example: 100
+
+    DescribeCodingCurrentUserRequest:
+      type: object
+      required:
+        - Action
+      properties:
+        Action:
+          type: string
+          description: API 操作名称
+          example: "DescribeCodingCurrentUser"
+
+    # 响应 Schema
+    UserInfoResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 响应代码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "success"
+        data:
+          type: object
+          properties:
+            id:
+              type: integer
+              description: 用户ID
+            name:
+              type: string
+              description: 用户名
+            email:
+              type: string
+              description: 邮箱
+
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - display_name
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 项目唯一标识符
+          example: 12345
+        name:
+          type: string
+          description: 项目名称
+          maxLength: 100
+          example: "my-project"
+        display_name:
+          type: string
+          description: 项目显示名称
+          maxLength: 200
+          example: "My Project"
+        description:
+          type: string
+          description: 项目描述
+          maxLength: 1000
+          example: "这是一个示例项目"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2025-01-27T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2025-01-27T10:00:00Z"
+        status:
+          type: string
+          description: 项目状态
+          enum: [active, archived, suspended]
+          example: "active"
+        type:
+          type: string
+          description: 项目类型
+          example: "private"
+
+    Repository:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - display_name
+        - created_at
+        - updated_at
+        - git_url
+        - ssh_url
+      properties:
+        id:
+          type: integer
+          description: 仓库唯一标识符
+          example: 67890
+        project_id:
+          type: integer
+          description: 所属项目ID
+          example: 12345
+        name:
+          type: string
+          description: 仓库名称
+          maxLength: 100
+          example: "my-repo"
+        display_name:
+          type: string
+          description: 仓库显示名称
+          maxLength: 200
+          example: "My Repository"
+        description:
+          type: string
+          description: 仓库描述
+          maxLength: 1000
+          example: "这是一个示例仓库"
+        size:
+          type: integer
+          description: 仓库大小（字节）
+          minimum: 0
+          example: 1048576
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2025-01-27T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2025-01-27T10:00:00Z"
+        git_url:
+          type: string
+          format: uri
+          description: Git克隆URL
+          example: "https://e.coding.net/my-team/my-project/my-repo.git"
+        ssh_url:
+          type: string
+          format: uri
+          description: SSH克隆URL
+          example: "git@e.coding.net:my-team/my-project/my-repo.git"
+        is_public:
+          type: boolean
+          description: 是否公开
+          example: false
+        default_branch:
+          type: string
+          description: 默认分支
+          example: "main"
+
+    TeamDepot:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - display_name
+        - created_at
+        - updated_at
+        - git_url
+        - ssh_url
+        - team_name
+      properties:
+        id:
+          type: integer
+          description: 仓库唯一标识符
+          example: 67890
+        project_id:
+          type: integer
+          description: 所属项目ID
+          example: 12345
+        name:
+          type: string
+          description: 仓库名称
+          maxLength: 100
+          example: "my-repo"
+        display_name:
+          type: string
+          description: 仓库显示名称
+          maxLength: 200
+          example: "My Repository"
+        description:
+          type: string
+          description: 仓库描述
+          maxLength: 1000
+          example: "这是一个示例仓库"
+        size:
+          type: integer
+          description: 仓库大小（字节）
+          minimum: 0
+          example: 1048576
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2025-01-27T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2025-01-27T10:00:00Z"
+        git_url:
+          type: string
+          format: uri
+          description: Git克隆URL
+          example: "https://e.coding.net/my-team/my-project/my-repo.git"
+        ssh_url:
+          type: string
+          format: uri
+          description: SSH克隆URL
+          example: "git@e.coding.net:my-team/my-project/my-repo.git"
+        is_public:
+          type: boolean
+          description: 是否公开
+          example: false
+        default_branch:
+          type: string
+          description: 默认分支
+          example: "main"
+        team_name:
+          type: string
+          description: 团队名称
+          maxLength: 100
+          example: "my-team"
+
+    PaginationInfo:
+      type: object
+      required:
+        - page
+        - pageSize
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          description: 当前页码
+          minimum: 1
+          example: 1
+        pageSize:
+          type: integer
+          description: 每页大小
+          minimum: 1
+          maximum: 100
+          example: 20
+        total:
+          type: integer
+          description: 总记录数
+          minimum: 0
+          example: 100
+        totalPages:
+          type: integer
+          description: 总页数
+          minimum: 0
+          example: 5
+
+    ProjectListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 响应代码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "success"
+        data:
+          type: object
+          required:
+            - list
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/Project'
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 100
+            totalPages:
+              type: integer
+              example: 5
+
+    RepositoryListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 响应代码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "success"
+        data:
+          type: object
+          required:
+            - list
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/Repository'
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 50
+            totalPages:
+              type: integer
+              example: 3
+
+    TeamDepotListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 响应代码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "success"
+        data:
+          type: object
+          required:
+            - list
+            - page
+            - pageSize
+            - total
+            - totalPages
+          properties:
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/TeamDepot'
+            page:
+              type: integer
+              example: 1
+            pageSize:
+              type: integer
+              example: 100
+            total:
+              type: integer
+              example: 50
+            totalPages:
+              type: integer
+              example: 1
+
+    RepositoryDetailResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 响应代码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "success"
+        data:
+          $ref: '#/components/schemas/Repository'
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: 错误代码
+          example: 401
+        message:
+          type: string
+          description: 错误消息
+          example: "Unauthorized"
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req_123456789"

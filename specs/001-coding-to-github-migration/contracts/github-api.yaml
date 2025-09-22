@@ -1,0 +1,494 @@
+openapi: 3.0.3
+info:
+  title: GitHub API Contract
+  description: GitHub API 契约定义
+  version: 1.0.0
+  contact:
+    name: GitHub API Support
+    url: https://docs.github.com/en/rest
+
+servers:
+  - url: https://api.github.com
+    description: GitHub API 服务器
+
+security:
+  - BearerAuth: []
+
+paths:
+  /user:
+    get:
+      summary: 获取当前用户信息
+      description: 获取当前认证用户的信息
+      tags:
+        - User
+      responses:
+        '200':
+          description: 成功获取用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /orgs/{org}:
+    get:
+      summary: 获取组织信息
+      description: 获取指定组织的信息
+      tags:
+        - Organizations
+      parameters:
+        - name: org
+          in: path
+          description: 组织名称
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            example: "ant-cool"
+      responses:
+        '200':
+          description: 成功获取组织信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /repos/{owner}/{repo}:
+    get:
+      summary: 获取仓库信息
+      description: 检查仓库是否存在并获取仓库信息
+      tags:
+        - Repositories
+      parameters:
+        - name: owner
+          in: path
+          description: 仓库所有者
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            example: "ant-cool"
+        - name: repo
+          in: path
+          description: 仓库名称
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_.-]+$'
+            example: "my-project-my-repository"
+      responses:
+        '200':
+          description: 仓库存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repository'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 仓库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: 创建仓库
+      description: 在指定组织下创建新仓库
+      tags:
+        - Repositories
+      parameters:
+        - name: owner
+          in: path
+          description: 仓库所有者（组织名称）
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            example: "ant-cool"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRepositoryRequest'
+      responses:
+        '201':
+          description: 仓库创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repository'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /orgs/{org}/repos:
+    get:
+      summary: 获取组织仓库列表
+      description: 获取指定组织的所有仓库
+      tags:
+        - Repositories
+      parameters:
+        - name: org
+          in: path
+          description: 组织名称
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            example: "ant-cool"
+        - name: page
+          in: query
+          description: 页码
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+      responses:
+        '200':
+          description: 成功获取仓库列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Repository'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: GitHub Personal Access Token
+
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - login
+        - name
+        - email
+      properties:
+        id:
+          type: integer
+          description: 用户 ID
+          example: 12345
+        login:
+          type: string
+          description: 用户名
+          example: "username"
+        name:
+          type: string
+          description: 显示名称
+          example: "User Name"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "user@example.com"
+        avatar_url:
+          type: string
+          format: uri
+          description: 头像 URL
+          example: "https://avatars.githubusercontent.com/u/12345"
+
+    Organization:
+      type: object
+      required:
+        - id
+        - login
+        - name
+        - description
+      properties:
+        id:
+          type: integer
+          description: 组织 ID
+          example: 12345
+        login:
+          type: string
+          description: 组织名称
+          example: "ant-cool"
+        name:
+          type: string
+          description: 组织显示名称
+          example: "Ant Cool"
+        description:
+          type: string
+          description: 组织描述
+          example: "一个很酷的组织"
+        avatar_url:
+          type: string
+          format: uri
+          description: 组织头像 URL
+          example: "https://avatars.githubusercontent.com/u/12345"
+        public_repos:
+          type: integer
+          description: 公开仓库数量
+          example: 100
+        private_repos:
+          type: integer
+          description: 私有仓库数量
+          example: 50
+
+    Repository:
+      type: object
+      required:
+        - id
+        - name
+        - full_name
+        - private
+        - html_url
+        - clone_url
+        - ssh_url
+        - default_branch
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: 仓库 ID
+          example: 12345
+        name:
+          type: string
+          description: 仓库名称
+          example: "my-project-my-repository"
+        full_name:
+          type: string
+          description: 完整仓库名称
+          example: "ant-cool/my-project-my-repository"
+        description:
+          type: string
+          description: 仓库描述
+          example: "从 Coding 迁移的仓库"
+        private:
+          type: boolean
+          description: 是否私有
+          example: false
+        html_url:
+          type: string
+          format: uri
+          description: 仓库页面 URL
+          example: "https://github.com/ant-cool/my-project-my-repository"
+        clone_url:
+          type: string
+          format: uri
+          description: HTTPS 克隆 URL
+          example: "https://github.com/ant-cool/my-project-my-repository.git"
+        ssh_url:
+          type: string
+          description: SSH 克隆 URL
+          example: "git@github.com:ant-cool/my-project-my-repository.git"
+        default_branch:
+          type: string
+          description: 默认分支
+          example: "main"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2025-01-27T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2025-01-27T10:00:00Z"
+        pushed_at:
+          type: string
+          format: date-time
+          description: 最后推送时间
+          example: "2025-01-27T10:00:00Z"
+        size:
+          type: integer
+          description: 仓库大小（KB）
+          example: 1024
+        stargazers_count:
+          type: integer
+          description: 星标数量
+          example: 10
+        watchers_count:
+          type: integer
+          description: 关注者数量
+          example: 5
+        forks_count:
+          type: integer
+          description: Fork 数量
+          example: 2
+
+    CreateRepositoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: 仓库名称
+          pattern: '^[a-zA-Z0-9_.-]+$'
+          minLength: 1
+          maxLength: 100
+          example: "my-project-my-repository"
+        description:
+          type: string
+          description: 仓库描述
+          maxLength: 1000
+          example: "从 Coding 迁移的仓库"
+        private:
+          type: boolean
+          description: 是否私有
+          default: false
+          example: false
+        auto_init:
+          type: boolean
+          description: 是否自动初始化
+          default: false
+          example: false
+        gitignore_template:
+          type: string
+          description: Gitignore 模板
+          example: "PHP"
+        license_template:
+          type: string
+          description: 许可证模板
+          example: "mit"
+
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: 错误信息
+          example: "Validation Failed"
+        errors:
+          type: array
+          description: 详细错误列表
+          items:
+            type: object
+            properties:
+              resource:
+                type: string
+                example: "Repository"
+              field:
+                type: string
+                example: "name"
+              code:
+                type: string
+                example: "missing_field"
+              message:
+                type: string
+                example: "Name is required"
+        documentation_url:
+          type: string
+          format: uri
+          description: 文档链接
+          example: "https://docs.github.com/rest/reference/repos#create-a-repository-for-the-authenticated-user"
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Validation Failed"
+            errors:
+              - resource: "Repository"
+                field: "name"
+                code: "invalid"
+                message: "Name is too short"
+
+    Unauthorized:
+      description: 未授权访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Bad credentials"
+
+    Forbidden:
+      description: 禁止访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "API rate limit exceeded"
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Not Found"
+
+    UnprocessableEntity:
+      description: 请求无法处理
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Validation Failed"
+            errors:
+              - resource: "Repository"
+                field: "name"
+                code: "already_exists"
+                message: "Repository already exists"
+
+    InternalServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Internal Server Error"

@@ -1,0 +1,15 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/Fixtures
+    ignoreErrors:
+        - '#Call to an undefined method#'
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
+    reportUnmatchedIgnoredErrors: false
+    parallel:
+        processTimeout: 300.0
+    tmpDir: .phpstan-cache
