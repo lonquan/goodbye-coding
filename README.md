@@ -1,6 +1,18 @@
 # Coding 到 GitHub 代码仓库迁移工具
 
-一个强大的CLI工具，用于将Coding平台的代码仓库迁移到GitHub平台。
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-blue.svg)](https://php.net/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Composer](https://img.shields.io/badge/composer-2.0+-blue.svg)](https://getcomposer.org/)
+
+一个强大的CLI工具，用于将Coding平台的代码仓库迁移到GitHub平台。支持批量迁移、代码下载、仓库管理等功能。
+
+## 🚀 主要功能
+
+- **📥 代码下载**: 将Coding仓库下载到本地，按项目结构组织
+- **🔄 仓库迁移**: 将Coding仓库完整迁移到GitHub
+- **🗑️ 仓库管理**: 支持删除GitHub仓库
+- **⚡ 并发处理**: 支持并发操作，提高效率
+- **🎨 交互式界面**: 友好的用户界面，支持预览和确认
 
 ## 功能特性
 
@@ -14,6 +26,8 @@
 - 🎯 **精确控制**: 支持指定项目、仓库迁移
 - 🎨 **交互式界面**: 友好的交互式选择界面，支持仓库预览和确认
 - 🔍 **智能检查**: 自动检查GitHub仓库存在性，支持覆盖策略配置
+- 📥 **代码下载**: 支持将Coding仓库下载到本地
+- 🗑️ **仓库管理**: 支持删除GitHub仓库
 
 ## 安装
 
@@ -55,10 +69,44 @@ GITHUB_ORGANIZATION=your_github_organization_here
 
 ### 快速开始
 
-完成安装和配置后，运行迁移命令：
+1. **配置环境变量**：
+   ```bash
+   export CODING_ACCESS_TOKEN="your_coding_token"
+   export GITHUB_ACCESS_TOKEN="your_github_token"
+   export GITHUB_ORGANIZATION="your_github_org"
+   ```
 
+2. **检查工具状态**：
+   ```bash
+   php bin/migration.php status
+   ```
+
+3. **选择操作**：
+   - **下载代码**：`php bin/migration.php download`
+   - **迁移仓库**：`php bin/migration.php migrate`
+   - **删除仓库**：`php bin/migration.php delete-repositories`
+
+### 常见使用场景
+
+#### 场景1：完整迁移流程
 ```bash
+# 1. 先下载所有代码到本地
+php bin/migration.php download --output-dir ./backup
+
+# 2. 然后迁移到GitHub
 php bin/migration.php migrate
+```
+
+#### 场景2：仅备份代码
+```bash
+# 下载所有代码到指定目录，排除空仓库
+php bin/migration.php download -o /path/to/backup --exclude-empty
+```
+
+#### 场景3：清理GitHub仓库
+```bash
+# 交互式删除不需要的仓库
+php bin/migration.php delete-repositories
 ```
 
 ### 基本命令
@@ -75,6 +123,38 @@ php bin/migration.php config --show
 
 # 验证配置
 php bin/migration.php config --validate
+```
+
+### 代码下载命令
+
+```bash
+# 下载所有仓库到默认目录
+php bin/migration.php download
+
+# 下载到指定目录
+php bin/migration.php download --output-dir /path/to/downloads
+
+# 排除空仓库
+php bin/migration.php download --exclude-empty
+
+# 设置并发下载数量
+php bin/migration.php download --concurrent 5
+
+# 组合使用
+php bin/migration.php download -o /path/to/downloads --exclude-empty -c 5
+```
+
+### 仓库管理命令
+
+```bash
+# 删除GitHub仓库（交互式）
+php bin/migration.php delete-repositories
+
+# 删除指定仓库
+php bin/migration.php delete-repositories --repositories repo1,repo2
+
+# 删除指定组织的所有仓库
+php bin/migration.php delete-repositories --organization myorg --all
 ```
 
 ### 迁移命令
@@ -121,6 +201,49 @@ php bin/migration.php status --check-git
 
 # 详细输出
 php bin/migration.php status --verbose
+```
+
+## 目录结构说明
+
+### 下载后的目录结构
+
+使用 `download` 命令后，代码将按以下结构组织：
+
+```
+downloads/
+├── project1/
+│   ├── repo1/
+│   │   ├── .git/
+│   │   ├── src/
+│   │   ├── README.md
+│   │   └── ...
+│   └── repo2/
+│       ├── .git/
+│       └── ...
+├── project2/
+│   ├── repo1/
+│   └── repo2/
+└── ...
+```
+
+### 项目目录结构
+
+```
+migration/
+├── bin/
+│   └── migration.php          # 主程序入口
+├── config/
+│   └── migration.php          # 配置文件
+├── docs/
+│   └── download-command.md    # 下载命令文档
+├── downloads/                 # 下载目录
+├── logs/                     # 日志文件
+├── src/
+│   ├── Commands/             # 命令类
+│   ├── Services/             # 服务类
+│   └── ...
+├── temp/                     # 临时文件
+└── README.md
 ```
 
 ## 配置说明
@@ -206,6 +329,11 @@ composer quality
 ```
 src/
 ├── Commands/          # Symfony Console 命令
+│   ├── ConfigCommand.php           # 配置管理命令
+│   ├── DeleteRepositoriesCommand.php # 删除仓库命令
+│   ├── DownloadCommand.php         # 下载命令
+│   ├── MigrateCommand.php          # 迁移命令
+│   └── StatusCommand.php           # 状态检查命令
 ├── Contracts/         # 接口定义
 ├── Exceptions/        # 异常类
 ├── Services/          # 核心服务
@@ -217,6 +345,8 @@ tests/
 └── Unit/            # 单元测试
 
 config/              # 配置文件
+docs/                # 文档文件
+downloads/           # 下载目录
 logs/                # 日志文件
 temp/                # 临时文件
 ```
@@ -262,6 +392,13 @@ MIT License
 欢迎提交Issue和Pull Request！
 
 ## 更新日志
+
+### v1.2.0
+- ✨ **新增下载命令**: 支持将Coding仓库下载到本地，按项目结构组织
+- ✨ **新增删除仓库命令**: 支持删除GitHub仓库，提供交互式和批量删除
+- 🔧 **优化迁移服务**: 改进错误处理和重试机制
+- 📚 **完善文档**: 新增下载命令详细文档和使用说明
+- 🎯 **增强功能**: 支持排除空仓库、并发下载等高级选项
 
 ### v1.1.0
 - ✨ **新增交互式迁移流程**: 支持用户友好的仓库选择和预览界面
