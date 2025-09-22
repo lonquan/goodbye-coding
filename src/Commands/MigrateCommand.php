@@ -460,6 +460,56 @@ class MigrateCommand extends Command
 
         $io->newLine();
         $io->writeln(sprintf('📊 总计: %d 个仓库', count($selectedRepositories)));
+
+        // 显示重要配置信息
+        $this->displayImportantConfigs($io);
+    }
+
+    /**
+     * 显示重要配置信息.
+     */
+    private function displayImportantConfigs(SymfonyStyle $io): void
+    {
+        $io->newLine();
+        $io->section('🔧 重要配置信息');
+
+        // 获取配置
+        $overwriteExisting = $this->configService->get('github.overwrite_existing', false);
+        $excludeRepositories = $this->configService->get('exclude_repositories', []);
+
+        // 显示 overwrite_existing 配置
+        $overwriteStatus = $overwriteExisting ? '✅ 启用' : '❌ 禁用';
+        $overwriteColor = $overwriteExisting ? 'fg=red' : 'fg=green';
+        $io->writeln(sprintf(
+            '<%s>📌 覆盖已存在仓库 (overwrite_existing): %s</%s>',
+            $overwriteColor,
+            $overwriteStatus,
+            $overwriteColor
+        ));
+
+        // 显示 exclude_repositories 配置
+        $excludeCount = count($excludeRepositories);
+        if ($excludeCount > 0) {
+            $io->writeln(sprintf(
+                '<fg=yellow>📌 排除仓库列表 (exclude_repositories): %d 个仓库</fg=yellow>',
+                $excludeCount
+            ));
+            
+            // 显示被排除的仓库列表（最多显示5个）
+            $displayCount = min(5, $excludeCount);
+            $io->writeln('   被排除的仓库:');
+            for ($i = 0; $i < $displayCount; $i++) {
+                $io->writeln(sprintf('   - %s', $excludeRepositories[$i]));
+            }
+            if ($excludeCount > 5) {
+                $io->writeln(sprintf('   ... 还有 %d 个仓库', $excludeCount - 5));
+            }
+        } else {
+            $io->writeln('<fg=green>📌 排除仓库列表 (exclude_repositories): 无</fg=green>');
+        }
+
+        $io->newLine();
+        $io->writeln('<comment>💡 提示: 如需修改配置，请编辑配置文件或使用 config 命令</comment>');
     }
 
     /**
