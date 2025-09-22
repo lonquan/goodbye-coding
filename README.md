@@ -76,12 +76,25 @@ GITHUB_ORGANIZATION=your_github_organization_here
    export GITHUB_ORGANIZATION="your_github_org"
    ```
 
-2. **检查工具状态**：
+2. **配置SSH密钥**（迁移前必需）：
+   ```bash
+   # 生成SSH密钥（如果还没有）
+   ssh-keygen -t ed25519 -C "your_email@example.com"
+   
+   # 将公钥添加到GitHub
+   cat ~/.ssh/id_ed25519.pub
+   # 复制输出内容到 GitHub Settings > SSH and GPG keys
+   
+   # 测试SSH连接
+   ssh -T git@github.com
+   ```
+
+3. **检查工具状态**：
    ```bash
    php bin/migration.php status
    ```
 
-3. **选择操作**：
+4. **选择操作**：
    - **下载代码**：`php bin/migration.php download`
    - **迁移仓库**：`php bin/migration.php migrate`
    - **删除仓库**：`php bin/migration.php delete-repositories`
@@ -158,6 +171,8 @@ php bin/migration.php delete-repositories --organization myorg --all
 ```
 
 ### 迁移命令
+
+> ⚠️ **重要提醒**：使用迁移命令前，请确保已正确配置SSH密钥，否则迁移过程可能会失败。
 
 ```bash
 # 交互式迁移（推荐）
@@ -365,12 +380,18 @@ temp/                # 临时文件
    - 验证访问令牌权限
    - 确认API地址正确
 
-3. **Git操作失败**
+3. **SSH密钥问题**
+   - 确保已生成SSH密钥：`ssh-keygen -t ed25519 -C "your_email@example.com"`
+   - 将公钥添加到GitHub：`cat ~/.ssh/id_ed25519.pub`
+   - 测试SSH连接：`ssh -T git@github.com`
+   - 如果使用HTTPS，确保访问令牌有仓库权限
+
+4. **Git操作失败**
    - 检查Git是否正确安装
    - 验证Git用户配置
    - 确认仓库权限
 
-4. **权限问题**
+5. **权限问题**
    - 检查文件/目录权限
    - 确认临时目录可写
    - 验证GitHub仓库创建权限
