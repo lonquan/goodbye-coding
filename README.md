@@ -17,20 +17,27 @@
 
 ## 安装
 
-### 使用 Composer
+### 1. 克隆仓库
+
+```bash
+git clone git@github.com:lonquan/goodbye-coding.git
+cd goodbye-coding
+```
+
+### 2. 安装依赖
 
 ```bash
 composer install
 ```
 
-### 环境配置
+### 3. 环境配置
 
-1. 复制环境变量示例文件：
+复制环境变量示例文件：
 ```bash
 cp .env.example .env
 ```
 
-2. 编辑 `.env` 文件，填入你的配置：
+编辑 `.env` 文件，填入你的配置：
 ```env
 # 仅支持以下三个配置项，其他配置将被忽略
 
@@ -45,6 +52,14 @@ GITHUB_ORGANIZATION=your_github_organization_here
 ```
 
 ## 使用方法
+
+### 快速开始
+
+完成安装和配置后，运行迁移命令：
+
+```bash
+php bin/migration.php migrate
+```
 
 ### 基本命令
 
